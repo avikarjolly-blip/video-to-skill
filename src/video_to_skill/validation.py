@@ -715,39 +715,47 @@ def _validate_course_skill_contract(
     if COURSE_SKILL_MARKER not in skill_text:
         return
     required_headings = {
-        "missing-empty-invocation": (
-            r"(?m)^## Empty invocation\s*$",
-            "Course skill is missing the empty-invocation contract.",
+        "missing-start-here": (
+            r"(?m)^## Start here\s*$",
+            "Course skill is missing its direct start contract.",
         ),
-        "missing-initial-context": (
-            r"(?m)^## Initial context\s*$",
-            "Course skill is missing its bounded initial-context contract.",
+        "missing-natural-requests": (
+            r"(?m)^## Try asking\s*$",
+            "Course skill is missing natural example requests.",
         ),
-        "missing-interaction-behavior": (
-            r"(?m)^## Interaction behavior\s*$",
+        "missing-recommended-workflow": (
+            r"(?m)^## Recommended workflow\s*$",
+            "Course skill is missing one recommended workflow.",
+        ),
+        "missing-skill-help": (
+            r"(?m)^## How this skill helps\s*$",
             "Course skill is missing adaptive interaction behavior.",
         ),
-        "missing-capability-profile": (
-            r"(?m)^## Capability profile\s*$",
-            "Course skill is missing its evidence-derived capability profile.",
-        ),
-        "missing-evidence-contract": (
-            r"(?m)^## Evidence and uncertainty\s*$",
-            "Course skill is missing its evidence and uncertainty contract.",
+        "missing-evidence-limits": (
+            r"(?m)^## Evidence and limits\s*$",
+            "Course skill is missing its evidence and limits contract.",
         ),
     }
     for code, (pattern, message) in required_headings.items():
         if not re.search(pattern, skill_text):
             report.add("error", code, message, root / "SKILL.md")
 
+    start_section = re.search(
+        r"(?ms)^## Start here\s*$\n(?P<body>.*?)(?=^## |\Z)",
+        skill_text,
+    )
+    if start_section and not re.search(r"\bstart\b", start_section.group("body"), re.IGNORECASE):
+        report.add(
+            "error",
+            "missing-start-option",
+            "Empty invocation must offer a zero-friction `start` path.",
+            root / "SKILL.md",
+        )
+
     behavioral_checks = {
         "missing-empty-no-side-effects": (
             r"(?is)load no supporting file.*inspect no project.*run no command.*create no file",
             "Empty invocation must have no supporting-file, project, command, or file side effects.",
-        ),
-        "missing-start-option": (
-            r"(?ims)^## Empty invocation.*\bstart\b",
-            "Empty invocation must offer a zero-friction `start` path.",
         ),
         "missing-three-question-bound": (
             r"(?is)\bat most three\b",
