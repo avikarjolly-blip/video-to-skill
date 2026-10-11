@@ -772,7 +772,7 @@ def _validate_course_skill_contract(
     welcome = re.search(r"(?m)^>\s*(?P<welcome>.+)$", start_body or "")
     if start_body is not None and (
         welcome is None
-        or not re.search(r'''["'`]start["'`]''', welcome.group("welcome"), re.IGNORECASE)
+        or not re.search(r"""["'`]start["'`]""", welcome.group("welcome"), re.IGNORECASE)
     ):
         report.add(
             "error",

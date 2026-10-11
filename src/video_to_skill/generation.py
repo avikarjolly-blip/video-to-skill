@@ -1406,9 +1406,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
         for path in blueprint.curriculum.paths
         if path.id == blueprint.curriculum.selected_path_id
     )
-    other_paths = [
-        path for path in blueprint.curriculum.paths if path.id != selected_path.id
-    ]
+    other_paths = [path for path in blueprint.curriculum.paths if path.id != selected_path.id]
     lines = [
         "---",
         f"name: {blueprint.name}",
@@ -1467,18 +1465,14 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
         [
             "## Recommended workflow",
             "",
-            (
-                f"**{selected_path.title}.** Use this when "
-                f"{selected_path.use_when.rstrip('.')}."
-            ),
+            (f"**{selected_path.title}.** Use this when {selected_path.use_when.rstrip('.')}."),
             "",
         ]
     )
     for index, artifact_id in enumerate(selected_path.artifact_ids, start=1):
         artifact = artifacts[artifact_id]
         lines.append(
-            f"{index}. [{artifact.title}]({artifact.path}) — "
-            f"{artifact.use_when.rstrip('.')}."
+            f"{index}. [{artifact.title}]({artifact.path}) — {artifact.use_when.rstrip('.')}."
         )
     lines.extend(
         [
@@ -1491,9 +1485,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
     if other_paths:
         lines.extend(["## Other useful routes", ""])
         for path in other_paths:
-            lines.append(
-                f"- **{path.title}:** Use when {path.use_when.rstrip('.')}."
-            )
+            lines.append(f"- **{path.title}:** Use when {path.use_when.rstrip('.')}.")
         lines.append("")
 
     indexed_ids = set(selected_path.artifact_ids)
@@ -1525,10 +1517,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
                     "load one only after an attempt or explicit request.",
                     "",
                 ]
-                if any(
-                    artifact.disclosure == "after-attempt"
-                    for artifact in blueprint.artifacts
-                )
+                if any(artifact.disclosure == "after-attempt" for artifact in blueprint.artifacts)
                 else []
             ),
             (

@@ -683,10 +683,12 @@ def test_course_contract_requires_start_option_inside_start_section(
     target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
     skill = target / "SKILL.md"
     skill.write_text(
-        skill.read_text(encoding="utf-8").replace(
+        skill.read_text(encoding="utf-8")
+        .replace(
             '—or say "start".',
             "—or continue.",
-        ).replace(
+        )
+        .replace(
             "Use source-grounded material first.",
             "Start with source-grounded material.",
         ),
@@ -753,10 +755,12 @@ def test_course_contract_rejects_start_decoy_in_starter_question(
     target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
     skill = target / "SKILL.md"
     skill.write_text(
-        skill.read_text(encoding="utf-8").replace(
+        skill.read_text(encoding="utf-8")
+        .replace(
             '—or say "start".',
             "—or continue.",
-        ).replace(
+        )
+        .replace(
             "- What are you trying to learn or do?",
             "- Where should we start with what you are trying to learn or do?",
         ),
