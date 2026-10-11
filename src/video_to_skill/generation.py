@@ -1394,6 +1394,13 @@ def _evidence_pointer(
     return f"{pointer}; {qualifier}{claim.confidence} confidence; `{claim.id}`"
 
 
+def _use_when_sentence(value: str, *, prefix: str) -> str:
+    phrase = value.strip().rstrip(".")
+    if re.match(r"(?i)^(?:use|when)\b", phrase):
+        return f"{phrase[0].upper()}{phrase[1:]}."
+    return f"{prefix} {phrase}."
+
+
 def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
     """Render the V2 host-neutral, teaching-first ``SKILL.md``."""
 
@@ -1465,7 +1472,10 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
         [
             "## Recommended workflow",
             "",
-            (f"**{selected_path.title}.** Use this when {selected_path.use_when.rstrip('.')}."),
+            (
+                f"**{selected_path.title}.** "
+                f"{_use_when_sentence(selected_path.use_when, prefix='Use this when')}"
+            ),
             "",
         ]
     )
@@ -1485,7 +1495,9 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
     if other_paths:
         lines.extend(["## Other useful routes", ""])
         for path in other_paths:
-            lines.append(f"- **{path.title}:** Use when {path.use_when.rstrip('.')}.")
+            lines.append(
+                f"- **{path.title}:** {_use_when_sentence(path.use_when, prefix='Use when')}"
+            )
         lines.append("")
 
     indexed_ids = set(selected_path.artifact_ids)
