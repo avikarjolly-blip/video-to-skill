@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -308,15 +309,47 @@ def test_renderer_contract_version_is_part_of_build_identity(
 
 
 def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> None:
+    blueprint = _blueprint()
+    blueprint.curriculum.paths.append(
+        CurriculumPath(
+            id="source-order",
+            title="Follow the original course order",
+            kind="source-faithful",
+            use_when="preserving the instructor's sequence matters",
+            artifact_ids=[
+                "artifact-foundations",
+                "artifact-exercise",
+                "artifact-application",
+                "artifact-reference",
+            ],
+        )
+    )
     target = render_course_skill_package(
-        _blueprint(),
+        blueprint,
         tmp_path / "skills" / "transition-course",
         workspace_root=tmp_path / "workspace",
     )
 
     resident = (target / "SKILL.md").read_text(encoding="utf-8")
     assert COURSE_SKILL_MARKER in resident
-    assert "## Empty invocation" in resident
+    assert "## Start here" in resident
+    assert "## Try asking" in resident
+    assert "## Core ideas" in resident
+    assert "## Recommended workflow" in resident
+    assert "## How this skill helps" in resident
+    assert "## Evidence and limits" in resident
+    assert resident.index("## Start here") < resident.index("## Try asking")
+    assert resident.index("## Try asking") < resident.index("## Core ideas")
+    assert resident.index("## Core ideas") < resident.index("## Recommended workflow")
+    assert '"Teach me the core ideas and check my understanding."' in resident
+    assert '"Give me a practice exercise and feedback on my attempt."' in resident
+    assert '"Help me apply this course to a real situation."' in resident
+    assert '"Answer a precise question and show me the source evidence."' in resident
+    assert "[Foundations](chapters/foundations.md)" in resident
+    assert resident.count("[Foundations](chapters/foundations.md)") == 1
+    assert "## Other useful routes" in resident
+    assert "**Follow the original course order:**" in resident
+    assert "preserving the instructor's sequence matters" in resident
     assert "at most three in one turn" in resident
     assert "**Learn:**" in resident
     assert "**Practice:**" in resident
@@ -326,6 +359,14 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     assert "user's actual context" in resident
     assert "outside or current knowledge" in resident
     assert "solutions/observe-transition.md" not in resident
+    assert "## Operating contract" not in resident
+    assert "## Empty invocation" not in resident
+    assert "## Initial context" not in resident
+    assert "## Interaction behavior" not in resident
+    assert "## Capability profile" not in resident
+    assert "## Learning paths" not in resident
+    assert "## Additional material" not in resident
+    assert "## Scope and limits" not in resident
     assert (target / "source-map.md").is_file()
     assert (target / "build-manifest.json").is_file()
 
@@ -370,6 +411,29 @@ def test_renderer_copies_only_sanitized_minimal_course_assets(tmp_path: Path) ->
     assert provenance["assets"][0]["source_sha256"] == hash_file(source)
     assert "source_path" not in provenance["assets"][0]
     assert validate_skill(target, run_official=False).valid
+
+
+def test_renderer_keeps_alternate_route_only_material_discoverable(
+    tmp_path: Path,
+) -> None:
+    blueprint = _blueprint()
+    selected_path = blueprint.curriculum.paths[0]
+    selected_path.artifact_ids.remove("artifact-reference")
+    blueprint.curriculum.paths.append(
+        CurriculumPath(
+            id="reference-route",
+            title="Reference-first route",
+            kind="custom",
+            use_when="looking up evidence types before taking the course",
+            artifact_ids=["artifact-reference"],
+        )
+    )
+
+    target = render_course_skill_package(blueprint, tmp_path / "transition-course")
+    resident = (target / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "## More material" in resident
+    assert resident.count("[Evidence types](reference/evidence-types.md)") == 1
 
 
 def test_blueprint_rejects_singular_modality(
@@ -583,14 +647,26 @@ def test_blueprint_requires_asset_link_and_visual_provenance(tmp_path: Path) -> 
         CourseSkillBlueprint.model_validate(ungrounded)
 
 
-def test_course_contract_validator_rejects_missing_empty_invocation(
+@pytest.mark.parametrize(
+    ("heading", "expected_code"),
+    [
+        ("## Start here", "missing-start-here"),
+        ("## Try asking", "missing-natural-requests"),
+        ("## Recommended workflow", "missing-recommended-workflow"),
+        ("## How this skill helps", "missing-skill-help"),
+        ("## Evidence and limits", "missing-evidence-limits"),
+    ],
+)
+def test_course_contract_validator_rejects_missing_task_first_heading(
     tmp_path: Path,
+    heading: str,
+    expected_code: str,
 ) -> None:
     target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
     skill = target / "SKILL.md"
     skill.write_text(
         skill.read_text(encoding="utf-8").replace(
-            "## Empty invocation",
+            heading,
             "## Invocation",
         ),
         encoding="utf-8",
@@ -598,7 +674,103 @@ def test_course_contract_validator_rejects_missing_empty_invocation(
 
     report = validate_skill(target, run_official=False)
     assert not report.valid
-    assert "missing-empty-invocation" in {item.code for item in report.issues}
+    assert expected_code in {item.code for item in report.issues}
+
+
+def test_course_contract_requires_start_option_inside_start_section(
+    tmp_path: Path,
+) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill.write_text(
+        skill.read_text(encoding="utf-8")
+        .replace(
+            '—or say "start".',
+            "—or continue.",
+        )
+        .replace(
+            "Use source-grounded material first.",
+            "Start with source-grounded material.",
+        ),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert "missing-start-option" in {item.code for item in report.issues}
+
+
+@pytest.mark.parametrize(
+    ("section", "expected_code"),
+    [
+        ("Try asking", "missing-natural-request-options"),
+        ("Recommended workflow", "missing-workflow-steps"),
+    ],
+)
+def test_course_contract_rejects_empty_task_sections(
+    tmp_path: Path,
+    section: str,
+    expected_code: str,
+) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill_text = skill.read_text(encoding="utf-8")
+    skill.write_text(
+        re.sub(
+            rf"(?ms)(^## {re.escape(section)}\s*$\n).*?(?=^## |\Z)",
+            r"\1\n",
+            skill_text,
+            count=1,
+        ),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert expected_code in {item.code for item in report.issues}
+
+
+def test_course_contract_rejects_task_sections_out_of_order(tmp_path: Path) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill_text = skill.read_text(encoding="utf-8")
+    skill.write_text(
+        skill_text.replace("## Try asking", "## __swap__", 1)
+        .replace("## Recommended workflow", "## Try asking", 1)
+        .replace("## __swap__", "## Recommended workflow", 1),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert "misordered-task-sections" in {item.code for item in report.issues}
+
+
+def test_course_contract_rejects_start_decoy_in_starter_question(
+    tmp_path: Path,
+) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill.write_text(
+        skill.read_text(encoding="utf-8")
+        .replace(
+            '—or say "start".',
+            "—or continue.",
+        )
+        .replace(
+            "- What are you trying to learn or do?",
+            "- Where should we start with what you are trying to learn or do?",
+        ),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert "missing-start-option" in {item.code for item in report.issues}
 
 
 def test_v2_requires_material_semantic_coverage_and_disposition_reasons() -> None:

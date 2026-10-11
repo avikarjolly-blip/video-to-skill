@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from video_to_skill.workspace import Workspace
 
 COURSE_SKILL_MARKER = "<!-- video-to-skill:course-skill:v2 -->"
-COURSE_SKILL_RENDERER_CONTRACT_VERSION = 1
+COURSE_SKILL_RENDERER_CONTRACT_VERSION = 2
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _MARKDOWN_TARGET_RE = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
 _ROOT_ARTIFACTS = {
@@ -1401,6 +1401,12 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
     sources = _source_map(blueprint)
     artifacts = {item.id: item for item in blueprint.artifacts}
     capability = blueprint.capability_profile
+    selected_path = next(
+        path
+        for path in blueprint.curriculum.paths
+        if path.id == blueprint.curriculum.selected_path_id
+    )
+    other_paths = [path for path in blueprint.curriculum.paths if path.id != selected_path.id]
     lines = [
         "---",
         f"name: {blueprint.name}",
@@ -1411,149 +1417,141 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
         "",
         blueprint.scope,
         "",
-        "## Operating contract",
-        "",
-        (
-            "Act as an evidence-grounded teacher and practitioner for this course. Infer "
-            "whether the user wants to learn, practice, apply, or look something up; do "
-            "not make them choose an internal mode. Move between behaviors when useful, "
-            "load only the smallest relevant artifact, and never treat this package as "
-            "knowledge beyond its stated scope."
-        ),
-        "",
-        (
-            f"Use {blueprint.artifact_language} as the canonical artifact language and "
-            "respond in the user's language unless they request otherwise."
-        ),
-        "",
-        "## Empty invocation",
-        "",
-        "When invoked without a specific request, load no supporting file, inspect no project, run no command, and create no file. Reply with only this welcome and wait:",
+        "## Start here",
         "",
         f"> {blueprint.interaction.welcome}",
         "",
-        "Do not add a syllabus, mode menu, prerequisite list, evidence explanation, or feature list to that welcome.",
+        (
+            "When invoked without a specific request, return only that welcome and wait: "
+            "load no supporting file, inspect no project, run no command, and create no file."
+        ),
         "",
-        "## Initial context",
-        "",
-        "After the user chooses to begin, ask only the missing questions from this course-specific set, at most three in one turn. Say that short answers are enough:",
+        (
+            "After the user chooses to begin, ask only the missing questions from this "
+            "course-specific set, at most three in one turn. Say that short answers are enough:"
+        ),
         "",
         *[f"- {question}" for question in blueprint.interaction.starter_questions],
         "",
         "If the user already supplied enough context or asks a precise source question, proceed without an intake.",
         "",
-        "## Interaction behavior",
+        "## Try asking",
         "",
-        "- **Learn:** introduce one useful cognitive move, ground it in a source example when useful, ask one retrieval or transfer question, and adapt to the answer. Do not dump a chapter or announce a formal lesson unless requested.",
-        "- **Practice:** present a task and success criteria without loading its solution. Evaluate the attempt naturally, give the smallest useful hint, allow a retry, and reveal a rubric or solution only after an attempt or explicit request.",
-        "- **Apply:** inspect only the missing parts of the user's actual context, map source assumptions to it, label adaptations as inference, and use observable checkpoints. Do not pretend a conceptual source demonstrated an operational procedure.",
-        "- **Reference:** answer the precise question first, load the smallest relevant artifact or [source map](source-map.md), preserve exact details only when supported, and cite source timestamps for consequential claims.",
-        "",
-        "Keep learner progress in the active conversation or host memory, never in this shareable package.",
-        "",
-        "## Evidence and uncertainty",
-        "",
-        (
-            "Treat `provenance.json` as the machine-readable claim and semantic evidence "
-            "ledger, [source-map.md](source-map.md) as the high-recall meaning map, and "
-            "[sources.md](sources.md) as the source-acquisition record. A visible-state "
-            "claim requires visual evidence; an action or transition requires ordered "
-            "temporal evidence. Never upgrade low-confidence or inferred material into "
-            "an authoritative instruction."
-        ),
-        "",
-        (
-            "Teaching visuals are optional evidence surfaces, not resident context. When a "
-            "relevant artifact links one and visible state matters, open only that asset; "
-            "do not preload the `assets/` directory."
-        ),
-        "",
-        (
-            "Use source-grounded material first. Mark teaching or application inference "
-            "naturally. When the request calls for outside or current knowledge, keep it "
-            "distinct from what the source establishes; ask permission only when a "
-            "material external action, private data, paid access, or a user-requested "
-            "source-only boundary requires it."
-        ),
+        '- "Teach me the core ideas and check my understanding."',
+        '- "Give me a practice exercise and feedback on my attempt."',
+        '- "Help me apply this course to a real situation."',
+        '- "Answer a precise question and show me the source evidence."',
         "",
     ]
 
-    if blueprint.prerequisites:
-        lines.extend(
-            ["## Prerequisites", "", *[f"- {item}" for item in blueprint.prerequisites], ""]
-        )
-
     if blueprint.core_principles:
-        lines.extend(["## Core principles", ""])
+        lines.extend(["## Core ideas", ""])
         for principle in blueprint.core_principles:
             claim = claims[principle.claim_id]
             lines.append(f"- {principle.text} _Evidence: {_evidence_pointer(claim, sources)}._")
         lines.append("")
 
+    if blueprint.prerequisites:
+        lines.extend(
+            [
+                "## Before applying this",
+                "",
+                *[f"- {item}" for item in blueprint.prerequisites],
+                "",
+            ]
+        )
+
     lines.extend(
         [
-            "## Capability profile",
+            "## Recommended workflow",
             "",
-            f"- Learn: **{capability.learn}**",
-            f"- Practice: **{capability.practice}**",
-            f"- Apply: **{capability.apply}**",
-            f"- Reference: **{capability.reference}**",
-            f"- Rationale: {capability.rationale}",
-            "",
-            "These levels describe relative depth, not user-visible modes or artifact quotas.",
-            "",
-            "## Learning paths",
+            (f"**{selected_path.title}.** Use this when {selected_path.use_when.rstrip('.')}."),
             "",
         ]
     )
-    ordered_paths = sorted(
-        blueprint.curriculum.paths,
-        key=lambda item: item.id != blueprint.curriculum.selected_path_id,
-    )
-    for path in ordered_paths:
-        marker = " **Recommended.**" if path.id == blueprint.curriculum.selected_path_id else ""
-        lines.append(f"### {path.title}{marker}")
-        lines.extend(["", path.use_when, ""])
-        for artifact_id in path.artifact_ids:
-            artifact = artifacts[artifact_id]
-            topics = f" Topics: {', '.join(artifact.topics)}." if artifact.topics else ""
-            lines.append(f"- [{artifact.title}]({artifact.path}) — {artifact.use_when}.{topics}")
-        lines.append("")
+    for index, artifact_id in enumerate(selected_path.artifact_ids, start=1):
+        artifact = artifacts[artifact_id]
+        lines.append(
+            f"{index}. [{artifact.title}]({artifact.path}) — {artifact.use_when.rstrip('.')}."
+        )
     lines.extend(
         [
+            "",
             f"Curriculum rationale: {blueprint.curriculum.rationale}",
             "",
-            "## Additional material",
-            "",
         ]
     )
-    indexed_ids = {
-        artifact_id for path in blueprint.curriculum.paths for artifact_id in path.artifact_ids
-    }
+
+    if other_paths:
+        lines.extend(["## Other useful routes", ""])
+        for path in other_paths:
+            lines.append(f"- **{path.title}:** Use when {path.use_when.rstrip('.')}.")
+        lines.append("")
+
+    indexed_ids = set(selected_path.artifact_ids)
     additional = [
         artifact
         for artifact in blueprint.artifacts
         if artifact.id not in indexed_ids and artifact.disclosure == "normal"
     ]
     if additional:
+        lines.extend(["## More material", ""])
         for artifact in additional:
-            behaviors = ", ".join(artifact.modes)
             lines.append(
-                f"- [{artifact.title}]({artifact.path}) — {artifact.use_when}. "
-                f"Behaviors: {behaviors}."
+                f"- [{artifact.title}]({artifact.path}) — {artifact.use_when.rstrip('.')}."
             )
-    else:
-        lines.append("- No additional indexed artifact.")
-    if any(artifact.disclosure == "after-attempt" for artifact in blueprint.artifacts):
-        lines.append(
-            "- Matching rubrics, answer keys, or solutions are intentionally unindexed; "
-            "load one only after an attempt or explicit request."
-        )
-    lines.append("")
+        lines.append("")
 
     lines.extend(
         [
-            "## Scope and limits",
+            "## How this skill helps",
+            "",
+            "- **Learn:** introduce one useful cognitive move, ground it in a source example when useful, ask one retrieval or transfer question, and adapt to the answer. Do not dump a chapter or announce a formal lesson unless requested.",
+            "- **Practice:** present a task and success criteria without loading its solution. Evaluate the attempt naturally, give the smallest useful hint, allow a retry, and reveal a rubric or solution only after an attempt or explicit request.",
+            "- **Apply:** inspect only the missing parts of the user's actual context, map source assumptions to it, label adaptations as inference, and use observable checkpoints. Do not pretend a conceptual source demonstrated an operational procedure.",
+            "- **Reference:** answer the precise question first, load the smallest relevant artifact or [source map](source-map.md), preserve exact details only when supported, and cite source timestamps for consequential claims.",
+            "",
+            *(
+                [
+                    "Matching rubrics, answer keys, and solutions are intentionally unindexed; "
+                    "load one only after an attempt or explicit request.",
+                    "",
+                ]
+                if any(artifact.disclosure == "after-attempt" for artifact in blueprint.artifacts)
+                else []
+            ),
+            (
+                "Supported depth: learning "
+                f"**{capability.learn}**, practice **{capability.practice}**, application "
+                f"**{capability.apply}**, and reference **{capability.reference}**. "
+                f"{capability.rationale}"
+            ),
+            "",
+            (
+                f"Use {blueprint.artifact_language} as the canonical artifact language and "
+                "respond in the user's language unless they request otherwise. Keep learner "
+                "progress in the active conversation or host memory, never in this shareable package."
+            ),
+            "",
+            "## Evidence and limits",
+            "",
+            (
+                "Use source-grounded material first. Mark teaching or application inference "
+                "naturally. A visible-state claim requires visual evidence; an action or "
+                "transition requires ordered temporal evidence. Never upgrade low-confidence "
+                "or inferred material into an authoritative instruction."
+            ),
+            "",
+            (
+                "When the request calls for outside or current knowledge, keep it distinct "
+                "from what the source establishes; ask permission only when a material external "
+                "action, private data, paid access, or a user-requested source-only boundary requires it."
+            ),
+            "",
+            (
+                "Teaching visuals are optional evidence surfaces. When a relevant artifact links "
+                "one and visible state matters, open only that asset; do not preload the `assets/` directory."
+            ),
             "",
             *(
                 [f"- {item}" for item in blueprint.limitations]
@@ -1574,7 +1572,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
                 ]
             ),
             "- This skill contains derivative teaching material, not raw video, complete subtitles, or the extraction workspace.",
-            "- Consult [source-map.md](source-map.md) for semantic coverage, [sources.md](sources.md) for acquisition coverage, `provenance.json` for exact mappings, and `build-manifest.json` for the portable build receipt.",
+            "- For detail, consult [source-map.md](source-map.md) for semantic coverage, [sources.md](sources.md) for acquisition coverage, `provenance.json` for exact mappings, and `build-manifest.json` for the portable build receipt.",
             "",
         ]
     )

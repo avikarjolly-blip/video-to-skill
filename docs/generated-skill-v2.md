@@ -585,6 +585,24 @@ Large course
 
 Do not require optional directories or target a file count. Exercises with answers always keep solutions separate with an explicit `after-attempt` disclosure policy. The renderer uses that policy, not a directory name, to keep them unindexed until an attempt or explicit request.
 
+### Resident entrypoint
+
+`SKILL.md` is a task-first front door, not a dump of internal contracts. Render its
+main sections in this order:
+
+1. `Start here` with the course-specific welcome and bounded intake;
+2. `Try asking` with natural learn, practice, apply, and reference requests;
+3. `Core ideas` when the source supports resident principles;
+4. `Recommended workflow`, expanding only the selected curriculum path;
+5. compact alternate-route summaries when genuine alternatives exist;
+6. `How this skill helps`; and
+7. `Evidence and limits`.
+
+Keep exact provenance, acquisition accounting, and the portable build receipt in
+their supporting files. Do not repeat every artifact under every curriculum path;
+the resident entrypoint expands the recommended path once and summarizes other
+routes by purpose.
+
 ## Capability profile
 
 Learn, practice, apply, and reference are routing behaviors. Assign each a relative level:
