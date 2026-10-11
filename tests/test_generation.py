@@ -310,12 +310,13 @@ def test_renderer_contract_version_is_part_of_build_identity(
 
 def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> None:
     blueprint = _blueprint()
+    blueprint.curriculum.paths[0].use_when = "Use for a guided transition course"
     blueprint.curriculum.paths.append(
         CurriculumPath(
             id="source-order",
             title="Follow the original course order",
             kind="source-faithful",
-            use_when="preserving the instructor's sequence matters",
+            use_when="Use when preserving the instructor's sequence matters",
             artifact_ids=[
                 "artifact-foundations",
                 "artifact-exercise",
@@ -350,6 +351,8 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     assert "## Other useful routes" in resident
     assert "**Follow the original course order:**" in resident
     assert "preserving the instructor's sequence matters" in resident
+    assert "Use this when Use" not in resident
+    assert "Use when Use" not in resident
     assert "at most three in one turn" in resident
     assert "**Learn:**" in resident
     assert "**Practice:**" in resident
