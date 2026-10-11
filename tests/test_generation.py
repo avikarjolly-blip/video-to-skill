@@ -297,6 +297,7 @@ def _blueprint_with_asset(workspace: Path, source_path: Path) -> CourseSkillBlue
 def test_renderer_contract_version_is_part_of_build_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 3
     blueprint = _blueprint()
     current = course_skill_build_id(blueprint)
     monkeypatch.setattr(
