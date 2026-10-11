@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -688,6 +689,76 @@ def test_course_contract_requires_start_option_inside_start_section(
         ).replace(
             "Use source-grounded material first.",
             "Start with source-grounded material.",
+        ),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert "missing-start-option" in {item.code for item in report.issues}
+
+
+@pytest.mark.parametrize(
+    ("section", "expected_code"),
+    [
+        ("Try asking", "missing-natural-request-options"),
+        ("Recommended workflow", "missing-workflow-steps"),
+    ],
+)
+def test_course_contract_rejects_empty_task_sections(
+    tmp_path: Path,
+    section: str,
+    expected_code: str,
+) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill_text = skill.read_text(encoding="utf-8")
+    skill.write_text(
+        re.sub(
+            rf"(?ms)(^## {re.escape(section)}\s*$\n).*?(?=^## |\Z)",
+            r"\1\n",
+            skill_text,
+            count=1,
+        ),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert expected_code in {item.code for item in report.issues}
+
+
+def test_course_contract_rejects_task_sections_out_of_order(tmp_path: Path) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill_text = skill.read_text(encoding="utf-8")
+    skill.write_text(
+        skill_text.replace("## Try asking", "## __swap__", 1)
+        .replace("## Recommended workflow", "## Try asking", 1)
+        .replace("## __swap__", "## Recommended workflow", 1),
+        encoding="utf-8",
+    )
+
+    report = validate_skill(target, run_official=False)
+
+    assert not report.valid
+    assert "misordered-task-sections" in {item.code for item in report.issues}
+
+
+def test_course_contract_rejects_start_decoy_in_starter_question(
+    tmp_path: Path,
+) -> None:
+    target = render_course_skill_package(_blueprint(), tmp_path / "transition-course")
+    skill = target / "SKILL.md"
+    skill.write_text(
+        skill.read_text(encoding="utf-8").replace(
+            '—or say "start".',
+            "—or continue.",
+        ).replace(
+            "- What are you trying to learn or do?",
+            "- Where should we start with what you are trying to learn or do?",
         ),
         encoding="utf-8",
     )

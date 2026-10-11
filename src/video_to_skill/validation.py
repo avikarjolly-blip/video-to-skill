@@ -705,6 +705,21 @@ def _validate_provenance(
     return payload
 
 
+def _level_two_sections(skill_text: str) -> list[tuple[str, str]]:
+    """Return level-two Markdown headings and their bodies in document order."""
+
+    matches = list(re.finditer(r"(?m)^## (?P<title>[^\n]+?)\s*$", skill_text))
+    return [
+        (
+            match.group("title").strip(),
+            skill_text[match.end() : matches[index + 1].start()]
+            if index + 1 < len(matches)
+            else skill_text[match.end() :],
+        )
+        for index, match in enumerate(matches)
+    ]
+
+
 def _validate_course_skill_contract(
     root: Path,
     skill_text: str,
@@ -714,41 +729,88 @@ def _validate_course_skill_contract(
 
     if COURSE_SKILL_MARKER not in skill_text:
         return
+    sections = _level_two_sections(skill_text)
+    section_names = [name for name, _body in sections]
+    section_bodies = {name: body for name, body in sections}
     required_headings = {
         "missing-start-here": (
-            r"(?m)^## Start here\s*$",
+            "Start here",
             "Course skill is missing its direct start contract.",
         ),
         "missing-natural-requests": (
-            r"(?m)^## Try asking\s*$",
+            "Try asking",
             "Course skill is missing natural example requests.",
         ),
         "missing-recommended-workflow": (
-            r"(?m)^## Recommended workflow\s*$",
+            "Recommended workflow",
             "Course skill is missing one recommended workflow.",
         ),
         "missing-skill-help": (
-            r"(?m)^## How this skill helps\s*$",
+            "How this skill helps",
             "Course skill is missing adaptive interaction behavior.",
         ),
         "missing-evidence-limits": (
-            r"(?m)^## Evidence and limits\s*$",
+            "Evidence and limits",
             "Course skill is missing its evidence and limits contract.",
         ),
     }
-    for code, (pattern, message) in required_headings.items():
-        if not re.search(pattern, skill_text):
+    for code, (heading, message) in required_headings.items():
+        if heading not in section_bodies:
             report.add("error", code, message, root / "SKILL.md")
 
-    start_section = re.search(
-        r"(?ms)^## Start here\s*$\n(?P<body>.*?)(?=^## |\Z)",
-        skill_text,
-    )
-    if start_section and not re.search(r"\bstart\b", start_section.group("body"), re.IGNORECASE):
+    required_order = [heading for heading, _message in required_headings.values()]
+    present_required = [name for name in section_names if name in required_order]
+    if present_required != [name for name in required_order if name in section_bodies]:
+        report.add(
+            "error",
+            "misordered-task-sections",
+            "Course skill task-first sections are out of order.",
+            root / "SKILL.md",
+        )
+
+    start_body = section_bodies.get("Start here")
+    welcome = re.search(r"(?m)^>\s*(?P<welcome>.+)$", start_body or "")
+    if start_body is not None and (
+        welcome is None
+        or not re.search(r'''["'`]start["'`]''', welcome.group("welcome"), re.IGNORECASE)
+    ):
         report.add(
             "error",
             "missing-start-option",
             "Empty invocation must offer a zero-friction `start` path.",
+            root / "SKILL.md",
+        )
+
+    natural_requests = section_bodies.get("Try asking")
+    if natural_requests is not None:
+        request_lines = re.findall(r"(?m)^-\s+\S.*$", natural_requests)
+        request_text = "\n".join(request_lines)
+        request_intents = [
+            r"\b(?:teach|learn)\b",
+            r"\bpractice\b",
+            r"\bapply\b",
+            r"\b(?:source|evidence|reference)\b",
+        ]
+        if len(request_lines) < 4 or not all(
+            re.search(intent, request_text, re.IGNORECASE) for intent in request_intents
+        ):
+            report.add(
+                "error",
+                "missing-natural-request-options",
+                "Course skill must offer learn, practice, apply, and reference requests.",
+                root / "SKILL.md",
+            )
+
+    recommended_workflow = section_bodies.get("Recommended workflow")
+    if recommended_workflow is not None and not re.search(
+        r"(?m)^\d+\.\s+\[[^\]\n]+\]\((?!https?://|/|#)[^)\n]+\)",
+        recommended_workflow,
+        re.IGNORECASE,
+    ):
+        report.add(
+            "error",
+            "missing-workflow-steps",
+            "Recommended workflow must include a numbered local artifact link.",
             root / "SKILL.md",
         )
 
