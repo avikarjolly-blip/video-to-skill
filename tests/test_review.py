@@ -12,6 +12,7 @@ from video_to_skill.agentic import visual_retention_gaps
 from video_to_skill.author import submit_author_result
 from video_to_skill.behavior import snapshot_behavior_target
 from video_to_skill.errors import ProcessingError
+from video_to_skill.generation import SemanticUnit
 from video_to_skill.models import (
     ObservationProducer,
     VisualRetentionInterval,
@@ -255,6 +256,30 @@ def test_behavior_trials_are_catalog_owned_and_prompt_isolated(tmp_path: Path) -
         assert set(packet["scenario"]) == {"id", "prompt"}
         assert "expected_behavior" not in json.dumps(packet)
         assert "canonical" not in packet
+
+
+def test_behavior_catalog_recognizes_explicitly_unresolved_qualification() -> None:
+    unresolved_qualification = SemanticUnit(
+        id="unit-unresolved-debate",
+        source_id="course-01",
+        start=10,
+        end=20,
+        kind="qualification",
+        summary="The source preserves an unresolved differentiation debate.",
+        detail="The instructor asks learners to form an evidence-aware view.",
+        materiality="core",
+        disposition="included",
+        inferred=False,
+        confidence="high",
+        modalities=["speech"],
+        evidence_ids=["evidence-01"],
+    )
+
+    catalog = behavior_module.build_behavior_catalog([unresolved_qualification], [])
+    scenario = next(item for item in catalog if item.id == "content.unresolved-question")
+
+    assert scenario.applicability == "required"
+    assert scenario.semantic_unit_ids == ["unit-unresolved-debate"]
 
 
 def test_review_rejects_missing_catalog_scenario(tmp_path: Path) -> None:

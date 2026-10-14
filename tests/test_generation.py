@@ -297,7 +297,7 @@ def _blueprint_with_asset(workspace: Path, source_path: Path) -> CourseSkillBlue
 def test_renderer_contract_version_is_part_of_build_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 3
+    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 4
     blueprint = _blueprint()
     current = course_skill_build_id(blueprint)
     monkeypatch.setattr(
@@ -359,6 +359,7 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     assert "**Practice:**" in resident
     assert "**Apply:**" in resident
     assert "**Reference:**" in resident
+    assert "one compact, relevant evidence limit" in resident
     assert "without loading its solution" in resident
     assert "user's actual context" in resident
     assert "outside or current knowledge" in resident
