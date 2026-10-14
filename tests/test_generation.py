@@ -262,6 +262,9 @@ def _blueprint() -> CourseSkillBlueprint:
                 platform="youtube",
                 url="https://youtu.be/example",
                 coverage="complete",
+                source_sha256="a" * 64,
+                transcription_quality="ASR transcript; recognition errors may remain.",
+                derivative_rights="Redistribution rights for extracted frames are not established.",
             )
         ],
         claims=claims,
@@ -297,7 +300,7 @@ def _blueprint_with_asset(workspace: Path, source_path: Path) -> CourseSkillBlue
 def test_renderer_contract_version_is_part_of_build_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 5
+    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 6
     blueprint = _blueprint()
     current = course_skill_build_id(blueprint)
     monkeypatch.setattr(
@@ -335,7 +338,7 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     resident = (target / "SKILL.md").read_text(encoding="utf-8")
     assert COURSE_SKILL_MARKER in resident
     assert "## Start here" in resident
-    assert "> **Transition Course.** Let's explore how observable transitions work." in resident
+    assert "> **Transition Course:** Let's explore how observable transitions work." in resident
     assert "## Try asking" in resident
     assert "## Core ideas" in resident
     assert "## Recommended workflow" in resident
@@ -361,7 +364,8 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     assert "**Practice:**" in resident
     assert "**Apply:**" in resident
     assert "**Reference:**" in resident
-    assert "For any answer about what the source says" in resident
+    assert "Every source-specific answer must include three parts" in resident
+    assert "broad requests for the source's main model" in resident
     assert "one compact, relevant evidence limit" in resident
     assert "without loading its solution" in resident
     assert "user's actual context" in resident
@@ -381,6 +385,10 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     sources = (target / "sources.md").read_text(encoding="utf-8")
     assert "https://youtu.be/example?t=62" in sources
     assert "speech+visual+temporal" in sources
+    assert "## Source custody" in sources
+    assert "`" + ("a" * 64) + "`" in sources
+    assert "ASR transcript; recognition errors may remain." in sources
+    assert "Redistribution rights for extracted frames are not established." in sources
 
     report = validate_skill(target, run_official=True)
     assert report.valid, report.model_dump()

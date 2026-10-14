@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from video_to_skill.workspace import Workspace
 
 COURSE_SKILL_MARKER = "<!-- video-to-skill:course-skill:v2 -->"
-COURSE_SKILL_RENDERER_CONTRACT_VERSION = 5
+COURSE_SKILL_RENDERER_CONTRACT_VERSION = 6
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _MARKDOWN_TARGET_RE = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
 _ROOT_ARTIFACTS = {
@@ -143,8 +143,19 @@ class CourseSkillSource(GenerationModel):
     url: str | None = Field(default=None, max_length=4000)
     coverage: CoverageStatus
     notes: str | None = Field(default=None, max_length=1000)
+    source_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    transcription_quality: str | None = Field(default=None, max_length=1000)
+    derivative_rights: str | None = Field(default=None, max_length=1000)
 
-    @field_validator("id", "title", "creator", "platform", "notes")
+    @field_validator(
+        "id",
+        "title",
+        "creator",
+        "platform",
+        "notes",
+        "transcription_quality",
+        "derivative_rights",
+    )
     @classmethod
     def compact_text(cls, value: str | None) -> str | None:
         return _compact_required(value) if value is not None else None
@@ -1009,7 +1020,24 @@ def _workspace_source_coverage(
 def _course_source_from_workspace(
     source: SourceDescriptor,
     coverage: CoverageStatus,
+    warning_codes: set[str] | None = None,
 ) -> CourseSkillSource:
+    raw_sha256 = source.metadata.get("sha256")
+    source_sha256 = (
+        raw_sha256
+        if isinstance(raw_sha256, str) and re.fullmatch(r"[a-f0-9]{64}", raw_sha256)
+        else None
+    )
+    codes = warning_codes or set()
+    if "caption-replaced-by-asr" in codes:
+        transcription_quality = (
+            "ASR transcript used because source captions were unavailable; recognition errors "
+            "may remain."
+        )
+    else:
+        transcription_quality = (
+            "Transcript method and overall accuracy were not independently verified."
+        )
     return CourseSkillSource(
         id=source.id,
         title=source.title,
@@ -1017,6 +1045,13 @@ def _course_source_from_workspace(
         platform=source.platform.value,
         url=_safe_workspace_public_url(source.canonical_url),
         coverage=coverage,
+        notes=(None if source.creator else "Creator not recorded in the captured source metadata."),
+        source_sha256=source_sha256,
+        transcription_quality=transcription_quality,
+        derivative_rights=(
+            "No redistribution rights were recorded for source-derived frames; keep extracted "
+            "frames private unless permission is confirmed."
+        ),
     )
 
 
@@ -1182,10 +1217,15 @@ def blueprint_seed_from_workspace(workspace: Workspace) -> dict[str, object]:
         and item.source_id is not None
         and item.workspace_coverage is not None
     }
+    warning_codes_by_source: dict[str, set[str]] = defaultdict(set)
+    for warning in workspace.list_warnings():
+        if warning.source_id is not None:
+            warning_codes_by_source[warning.source_id].add(warning.code)
     sources = [
         _course_source_from_workspace(
             source,
             coverage_by_source.get(source.id, "partial"),
+            warning_codes_by_source.get(source.id),
         ).model_dump(mode="json", exclude_none=True)
         for source in workspace.list_sources()
     ]
@@ -1426,7 +1466,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
         "",
         "## Start here",
         "",
-        f"> **{blueprint.title.rstrip('.')}.** {blueprint.interaction.welcome}",
+        f"> **{blueprint.title.rstrip('.')}:** {blueprint.interaction.welcome}",
         "",
         (
             "When invoked without a specific request, return only that welcome and wait: "
@@ -1527,7 +1567,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
             "- **Learn:** introduce one useful cognitive move, ground it in a source example when useful, ask one retrieval or transfer question, and adapt to the answer. Do not dump a chapter or announce a formal lesson unless requested.",
             "- **Practice:** present a task and success criteria without loading its solution. Evaluate the attempt naturally, give the smallest useful hint, allow a retry, and reveal a rubric or solution only after an attempt or explicit request.",
             "- **Apply:** inspect only the missing parts of the user's actual context, map source assumptions to it, label adaptations as inference, and use observable checkpoints. Do not pretend a conceptual source demonstrated an operational procedure.",
-            "- **Reference:** answer the precise question first and load the smallest relevant artifact or [source map](source-map.md). For any answer about what the source says, cite the smallest supporting timestamped window and end with one compact, relevant evidence limit when the cited material does not establish application or outcome.",
+            "- **Reference:** answer the precise question first and load the smallest relevant artifact or [source map](source-map.md). Every source-specific answer must include three parts: the direct answer, the smallest supporting timestamped window, and one compact, relevant evidence limit. Route broad requests for the source's main model to the fullest defining unit; reserve a narrower distinction or correction unit for misconception or correction requests.",
             "",
             *(
                 [
@@ -1687,6 +1727,30 @@ def render_sources_markdown(blueprint: CourseSkillBlueprint) -> str:
                     source.platform.replace("|", "\\|"),
                     source.coverage,
                     (source.notes or "—").replace("|", "\\|"),
+                )
+            )
+            + " |"
+        )
+
+    lines.extend(["", "## Source custody", ""])
+    lines.extend(
+        [
+            "The original media is not embedded. These records identify the inspected source and "
+            "bound the derivative material carried by this package.",
+            "",
+            "| Source | Original media SHA-256 | Transcript quality | Derived visual use |",
+            "|---|---|---|---|",
+        ]
+    )
+    for source in blueprint.sources:
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    source.title.replace("|", "\\|"),
+                    (f"`{source.source_sha256}`" if source.source_sha256 else "Not recorded"),
+                    (source.transcription_quality or "Not recorded").replace("|", "\\|"),
+                    (source.derivative_rights or "Not recorded").replace("|", "\\|"),
                 )
             )
             + " |"
