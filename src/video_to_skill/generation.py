@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from video_to_skill.workspace import Workspace
 
 COURSE_SKILL_MARKER = "<!-- video-to-skill:course-skill:v2 -->"
-COURSE_SKILL_RENDERER_CONTRACT_VERSION = 3
+COURSE_SKILL_RENDERER_CONTRACT_VERSION = 4
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _MARKDOWN_TARGET_RE = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
 _ROOT_ARTIFACTS = {
@@ -1521,7 +1521,7 @@ def render_course_skill_markdown(blueprint: CourseSkillBlueprint) -> str:
             "- **Learn:** introduce one useful cognitive move, ground it in a source example when useful, ask one retrieval or transfer question, and adapt to the answer. Do not dump a chapter or announce a formal lesson unless requested.",
             "- **Practice:** present a task and success criteria without loading its solution. Evaluate the attempt naturally, give the smallest useful hint, allow a retry, and reveal a rubric or solution only after an attempt or explicit request.",
             "- **Apply:** inspect only the missing parts of the user's actual context, map source assumptions to it, label adaptations as inference, and use observable checkpoints. Do not pretend a conceptual source demonstrated an operational procedure.",
-            "- **Reference:** answer the precise question first, load the smallest relevant artifact or [source map](source-map.md), preserve exact details only when supported, and cite source timestamps for consequential claims.",
+            "- **Reference:** answer the precise question first, load the smallest relevant artifact or [source map](source-map.md), preserve exact details only when supported, cite source timestamps for consequential claims, and end with one compact, relevant evidence limit when the cited material does not establish application or outcome.",
             "",
             *(
                 [

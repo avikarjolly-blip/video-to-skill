@@ -17,7 +17,7 @@ from video_to_skill.orchestration import (
 )
 from video_to_skill.utils import hash_file, stable_hash
 
-BEHAVIOR_CATALOG_VERSION = "generated-skill-v2.behavior-catalog-1"
+BEHAVIOR_CATALOG_VERSION = "generated-skill-v2.behavior-catalog-2"
 BEHAVIOR_CONTRACT_VERSION = 2
 MAX_BEHAVIOR_TARGET_FILES = 500
 MAX_BEHAVIOR_TARGET_BYTES = 128 * 1024 * 1024
@@ -89,6 +89,20 @@ def _first(
     return candidates[0] if candidates else None
 
 
+def _first_unresolved(units: list[SemanticUnit]) -> SemanticUnit | None:
+    explicit = _first(units, kinds={"open-question"})
+    if explicit is not None:
+        return explicit
+    markers = ("unresolved", "unsettled", "remains open", "not settled")
+    for unit in units:
+        if unit.disposition != "included":
+            continue
+        text = " ".join(part for part in (unit.summary, unit.detail) if part).casefold()
+        if any(marker in text for marker in markers):
+            return unit
+    return None
+
+
 def build_behavior_catalog(
     semantic_units: list[SemanticUnit],
     affordances: list[InstructionalAffordance],
@@ -108,7 +122,7 @@ def build_behavior_catalog(
     middle_example = examples[len(examples) // 2] if examples else None
     qualification = _first(semantic_units, kinds={"qualification"})
     prediction = _first(semantic_units, kinds={"prediction"})
-    unresolved = _first(semantic_units, kinds={"open-question"})
+    unresolved = _first_unresolved(semantic_units)
     visual = _first(semantic_units, modalities={"visual", "temporal"})
 
     units_by_id = {unit.id: unit for unit in semantic_units}
