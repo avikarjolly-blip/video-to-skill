@@ -297,7 +297,7 @@ def _blueprint_with_asset(workspace: Path, source_path: Path) -> CourseSkillBlue
 def test_renderer_contract_version_is_part_of_build_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 4
+    assert generation_module.COURSE_SKILL_RENDERER_CONTRACT_VERSION == 5
     blueprint = _blueprint()
     current = course_skill_build_id(blueprint)
     monkeypatch.setattr(
@@ -335,6 +335,7 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     resident = (target / "SKILL.md").read_text(encoding="utf-8")
     assert COURSE_SKILL_MARKER in resident
     assert "## Start here" in resident
+    assert "> **Transition Course.** Let's explore how observable transitions work." in resident
     assert "## Try asking" in resident
     assert "## Core ideas" in resident
     assert "## Recommended workflow" in resident
@@ -355,10 +356,12 @@ def test_rendered_course_skill_is_teaching_first_and_valid(tmp_path: Path) -> No
     assert "Use this when Use" not in resident
     assert "Use when Use" not in resident
     assert "at most three in one turn" in resident
+    assert "brand, product, system, case, or situation" in resident
     assert "**Learn:**" in resident
     assert "**Practice:**" in resident
     assert "**Apply:**" in resident
     assert "**Reference:**" in resident
+    assert "For any answer about what the source says" in resident
     assert "one compact, relevant evidence limit" in resident
     assert "without loading its solution" in resident
     assert "user's actual context" in resident
